@@ -22,24 +22,28 @@ if st.button("Fetch Data"):
         st.error("Start date must be before end date.")
     else:
         tickers = [ticker.strip().upper() for ticker in tickers_input.split(",")]
+
+        # If only one ticker, fetch without multi-index
+        multiple = len(tickers) > 1
         st.info("Fetching data...")
 
-        # Fetch data all at once
         data = yf.download(tickers, start=start_date, end=end_date, group_by='ticker', auto_adjust=True)
 
         if data.empty:
             st.warning("No data found.")
         else:
-            # Reshape for multi-ticker handling
             combined_data = []
 
             for ticker in tickers:
-                if ticker in data.columns.levels[0]:
-                    ticker_df = data[ticker][["Close"]].copy()
+                try:
+                    if multiple:
+                        ticker_df = data[ticker][["Close"]].copy()
+                    else:
+                        ticker_df = data[["Close"]].copy()
                     ticker_df["Ticker"] = ticker
                     ticker_df["Date"] = ticker_df.index
                     combined_data.append(ticker_df.reset_index(drop=True))
-                else:
+                except KeyError:
                     st.warning(f"No data found for {ticker}")
 
             if not combined_data:
@@ -53,7 +57,7 @@ if st.button("Fetch Data"):
 
                 # Plot
                 fig, ax = plt.subplots(figsize=(12, 6))
-                for ticker in tickers:
+                for ticker in final_df["Ticker"].unique():
                     ticker_data = final_df[final_df["Ticker"] == ticker]
                     ax.plot(ticker_data["Date"], ticker_data["Close"], label=ticker)
                 ax.set(title="Stock Closing Prices", xlabel="Date", ylabel="Price (USD)")
